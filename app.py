@@ -1,85 +1,59 @@
-
 import streamlit as st
 import pandas as pd
+import openai
 import re
 
-st.set_page_config(page_title="FinTracker 2.0", layout="centered")
-st.title("📊 FinTracker 2.0 – Asistente Inteligente de Operaciones")
+# Configuración de la página
+st.set_page_config(page_title="FinTracker GPT", layout="centered")
+st.title("📊 FinTracker + GPT - Asistente Inteligente de Operaciones")
 
+# Configurar la API Key desde los secrets
+gpt_key = st.secrets["openai"]["api_key"]
+openai.api_key = gpt_key
+
+# Subir archivo Excel
 st.markdown("""
 Sube un archivo de Excel con los datos de tus operaciones y hazle preguntas como:
-- ¿Qué balances envió el vendedor Juan Pérez?
-- ¿Cuánto se adelantó en las referencias 00008, 00010 y 00046?
-- Muéstrame todas las operaciones del comprador ACME Corp que estén abiertas.
+- ¿Cuál fue el adelanto de la referencia 00008?
+- ¿Cuáles operaciones tiene el comprador X abiertas?
+- ¿Muéstrame todas las referencias con un fee de atraso mayor a $500
 """)
 
 uploaded_file = st.file_uploader("📁 Sube tu archivo Excel", type=["xlsx"])
 
 if uploaded_file:
     df = pd.read_excel(uploaded_file, dtype=str)
-    df.columns = df.columns.str.upper()
-    df["REFERENCE_NUMBER"] = df["REFERENCE_NUMBER"].astype(str).str.zfill(5)
-    
     st.subheader("Vista previa de la tabla")
     st.dataframe(df.head())
 
-    pregunta = st.text_input("🤖 Escribe tu consulta")
+    pregunta = st.text_input("🤖 Escribe tu pregunta sobre el archivo cargado")
 
     if pregunta:
-        pregunta = pregunta.lower()
+        with st.spinner("Pensando..."):
+            # Armar prompt para el modelo
+            prompt = f"""
+Eres un experto en analizar archivos de Excel con datos financieros. Con base en la siguiente tabla, responde la pregunta del usuario de forma concisa, clara y en español.
 
-        resultados = pd.DataFrame()
-        total_balance = 0
+Tabla:
+{df.head(30).to_string(index=False)}
 
-        # Buscar por vendedor
-        vendedores = df["SELLER_NAME"].dropna().unique()
-        for nombre in vendedores:
-            if nombre.lower() in pregunta:
-                resultados = df[df["SELLER_NAME"].str.lower() == nombre.lower()]
-                break
-
-        # Buscar por comprador si no hubo resultado por vendedor
-        if resultados.empty:
-            compradores = df["BUYER_NAME"].dropna().unique()
-            for nombre in compradores:
-                if nombre.lower() in pregunta:
-                    resultados = df[df["BUYER_NAME"].str.lower() == nombre.lower()]
-                    break
-
-        # Buscar por múltiples referencias si hay números
-        if resultados.empty:
-            ref_matches = re.findall(r"\d{2,5}", pregunta)
-            if ref_matches:
-                ref_nums = [r.zfill(5) for r in ref_matches]
-                resultados = df[df["REFERENCE_NUMBER"].isin(ref_nums)]
-
-        # Buscar por estado (open/closed)
-        if resultados.empty and "open" in pregunta:
-            resultados = df[df["STATE"].str.lower() == "open"]
-        elif resultados.empty and "closed" in pregunta:
-            resultados = df[df["STATE"].str.lower() == "closed"]
-
-        if resultados.empty:
-            st.warning("No encontré resultados para tu consulta.")
-        else:
-            mostrar = resultados[["REFERENCE_NUMBER", "SELLER_NAME", "BUYER_NAME", "TOTAL_ADVANCE_AMOUNT", "LIQUIDATION_BALANCE_RETURNED", "STATE"]].copy()
-            mostrar.columns = ["Referencia", "Vendedor", "Comprador", "Monto Adelantado", "Balance Enviado", "Estado"]
-
-            st.success("Resultados encontrados:")
-            st.dataframe(mostrar)
+Pregunta del usuario:
+{pregunta}
+"""
 
             try:
-                mostrar["Balance Enviado"] = mostrar["Balance Enviado"].replace('[\$,]', '', regex=True).astype(float)
-                total = mostrar["Balance Enviado"].sum()
-                st.markdown(f"### 🪙 Total balance enviado: ${total:,.2f}")
-            except:
-                st.info("No se pudo calcular el total porque los valores no están en formato numérico.")
+                respuesta = openai.ChatCompletion.create(
+                    model="gpt-4",
+                    messages=[
+                        {"role": "system", "content": "Eres un analista financiero que ayuda a leer datos de Excel"},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.2,
+                    max_tokens=400
+                )
 
-            # Botón de descarga
-            csv = mostrar.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label="📥 Descargar resultados como CSV",
-                data=csv,
-                file_name="resultados_fintracker.csv",
-                mime="text/csv"
-            )
+                st.success("Respuesta generada:")
+                st.write(respuesta.choices[0].message.content)
+
+            except Exception as e:
+                st.error(f"Error al consultar GPT: {e}")
