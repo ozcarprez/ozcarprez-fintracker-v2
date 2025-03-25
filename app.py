@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 import re
@@ -71,6 +72,14 @@ if uploaded_file:
             try:
                 mostrar["Balance Enviado"] = mostrar["Balance Enviado"].replace('[\$,]', '', regex=True).astype(float)
                 total = mostrar["Balance Enviado"].sum()
-                st.markdown(f"### 💰 Total balance enviado: ${total:,.2f}")
+                st.markdown(f"### 🪙 Total balance enviado: ${total:,.2f}")
             except:
                 st.info("No se pudo calcular el total porque los valores no están en formato numérico.")
+
+            # Botón de descarga
+            csv = mostrar.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="📥 Descargar resultados como CSV",
+                data=csv,
+                file_name="resultados_fintracker.csv",
+                mime="text/csv"
