@@ -8,9 +8,9 @@ st.title("📊 FinTracker 2.0 – Asistente Inteligente de Operaciones")
 
 st.markdown("""
 Sube un archivo de Excel con los datos de tus operaciones y hazle preguntas como:
-- ¿Qué balances envió Alfredo Belmonte Torres?
+- ¿Qué balances envió el vendedor Juan Pérez?
 - ¿Cuánto se adelantó en las referencias 00008, 00010 y 00046?
-- Muéstrame todas las operaciones de Exceptional Future que estén abiertas.
+- Muéstrame todas las operaciones del comprador ACME Corp que estén abiertas.
 """)
 
 uploaded_file = st.file_uploader("📁 Sube tu archivo Excel", type=["xlsx"])
@@ -68,7 +68,6 @@ if uploaded_file:
             st.success("Resultados encontrados:")
             st.dataframe(mostrar)
 
-            # Calcular total
             try:
                 mostrar["Balance Enviado"] = mostrar["Balance Enviado"].replace('[\$,]', '', regex=True).astype(float)
                 total = mostrar["Balance Enviado"].sum()
