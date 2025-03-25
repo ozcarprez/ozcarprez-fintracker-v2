@@ -83,3 +83,4 @@ if uploaded_file:
                 data=csv,
                 file_name="resultados_fintracker.csv",
                 mime="text/csv"
+            )
